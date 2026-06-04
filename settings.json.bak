@@ -1,0 +1,22 @@
+{
+  "security": {
+    "auth": {
+      "selectedType": "oauth-personal"
+    }
+  },
+  "ide": {
+    "hasSeenNudge": true,
+    "enabled": true
+  },
+  "mcpServers_BACKUP": {
+    "sam-gov": {
+      "command": "/Users/aaron/Sam_gov/.venv/bin/python",
+      "args": [
+        "/Users/aaron/Sam_gov/sam_server.py"
+      ],
+      "env": {
+        "SAM_API_KEY": "${SAM_API_KEY}"
+      }
+    }
+  }
+}
