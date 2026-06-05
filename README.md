@@ -3,3 +3,5 @@
 https://open.gsa.gov/api/get-opportunities-public-api/
 <h2>Description</h2>
 <p>The SAM.gov Get Opportunities Public API (v2) is a synchronous service that provides comprehensive details on the latest active versions of published federal procurement opportunitie</p>
+<h2>Repo Intent</h2>
+<p>To create an easy interface for the api to natural language prompt.</p>
