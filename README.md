@@ -1,4 +1,4 @@
-<h1>Sam_Tool</h1>
+<h1>Sam_MCP_Tool</h1>
 <h2>The offical sam.gov opportunities api documentation</h2>
 https://open.gsa.gov/api/get-opportunities-public-api/
 <h2>Description</h2>
