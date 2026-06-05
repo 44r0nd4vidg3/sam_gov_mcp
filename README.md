@@ -1,4 +1,6 @@
 # Sam_MCP_Tool
+<img width="1166" height="691" alt="Screenshot 2026-06-05 at 1 18 01 PM" src="https://github.com/user-attachments/assets/960d84de-72d4-48b0-b17b-fef77abc721f" />
+
 
 ## The official sam.gov opportunities api documentation
 
