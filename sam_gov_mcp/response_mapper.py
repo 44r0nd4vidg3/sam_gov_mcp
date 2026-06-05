@@ -19,8 +19,7 @@ logger = logging.getLogger(__name__)
 class ResponseMapper:
     """Map and normalize API responses."""
 
-    @staticmethod
-    def map_search_response(data: Dict[str, Any], api_key: str) -> SearchResponse:
+    def map_search_response(self, data: Dict[str, Any], api_key: str) -> SearchResponse:
         """Map API response to SearchResponse model.
 
         Args:
@@ -44,7 +43,7 @@ class ResponseMapper:
             # Map opportunities
             opportunities = []
             for record in data.get("opportunitiesData", []):
-                opportunity = ResponseMapper._map_opportunity(record, api_key)
+                opportunity = self._map_opportunity(record, api_key)
                 if opportunity:
                     opportunities.append(opportunity)
 
@@ -57,8 +56,7 @@ class ResponseMapper:
             logger.error(f"Failed to map response: {e}")
             raise ValidationError(f"Failed to map API response: {str(e)}")
 
-    @staticmethod
-    def _map_opportunity(data: Dict[str, Any], api_key: str) -> Optional[Opportunity]:
+    def _map_opportunity(self, data: Dict[str, Any], api_key: str) -> Optional[Opportunity]:
         """Map individual opportunity record.
 
         Args:
