@@ -1,13 +1,14 @@
-"""MCP Server implementation for SAM.gov API."""
+"""Update server to use cache manager."""
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from mcp.server import Server
 from mcp.types import Tool, TextContent
 from sam_gov_mcp.config import AppConfig
 from sam_gov_mcp.api_client import SamApiClient
 from sam_gov_mcp.response_mapper import ResponseMapper
 from sam_gov_mcp.validators import ParameterValidator
+from sam_gov_mcp.cache import CacheManager
 from sam_gov_mcp.tools import SearchOpportunitiesTool, GetOpportunityDetailsTool
 
 logger = logging.getLogger(__name__)
@@ -16,13 +17,19 @@ logger = logging.getLogger(__name__)
 class MCPServer:
     """Model Context Protocol Server for SAM.gov."""
 
-    def __init__(self, config: AppConfig = None):
+    def __init__(
+        self,
+        config: AppConfig = None,
+        cache_manager: Optional[CacheManager] = None,
+    ):
         """Initialize MCP Server.
 
         Args:
             config: Application configuration (uses .env if None)
+            cache_manager: Cache manager instance
         """
         self.config = config or AppConfig()
+        self.cache_manager = cache_manager
         self.mcp = Server("sam-gov-mcp")
         
         # Initialize components
@@ -36,11 +43,13 @@ class MCPServer:
                 self.api_client,
                 self.response_mapper,
                 self.validator,
+                cache_manager=cache_manager,
             ),
             "get_opportunity_details": GetOpportunityDetailsTool(
                 self.api_client,
                 self.response_mapper,
                 self.validator,
+                cache_manager=cache_manager,
             ),
         }
         
@@ -88,6 +97,8 @@ class MCPServer:
         """Stop the server."""
         logger.info("Stopping MCP Server...")
         await self.api_client.close()
+        if self.cache_manager:
+            await self.cache_manager.close()
         logger.info("MCP Server stopped")
 
     def get_server(self) -> Server:
