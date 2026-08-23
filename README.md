@@ -130,7 +130,14 @@ a password.
 
 ### 3. Connect it to your assistant
 
-For **Claude Desktop**, edit `claude_desktop_config.json`:
+For **Claude Desktop**, this server is added through the config file, not
+through the Connectors UI. "Custom connectors" in the Claude window are for
+**remote** MCP servers reached over HTTP — this one speaks stdio, so it is
+launched by the app as a subprocess instead.
+
+Open the **Claude menu in your operating system's menu bar** (not the settings
+inside the Claude window) → **Settings…** → **Developer** → **Edit Config**.
+That opens:
 
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Linux: `~/.config/Claude/claude_desktop_config.json`
@@ -155,7 +162,16 @@ Desktop does not inherit your shell's `PATH` or your active virtualenv, and a
 bare `python` is the most common reason a server shows up with no tools.
 Restart the app after editing.
 
+Quit Claude Desktop completely and reopen it — a window reload will not pick
+up the change.
+
 Cline, Cursor, and Continue take the same `command` / `args` / `env` shape.
+
+If the server does not appear, its stderr is captured here:
+
+```bash
+tail -n 40 -f ~/Library/Logs/Claude/mcp-server-sam-gov.log
+```
 
 ### 4. Ask for something
 
@@ -365,7 +381,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow.
 
 **No tools appear in the client.** Run the exact command from your config by
 hand. Nearly always a wrong interpreter path or a missing `SAM_API_KEY`.
-Errors go to stderr, which your client's MCP log captures.
+Errors go to stderr, which your client's MCP log captures
+(`~/Library/Logs/Claude/mcp-server-<name>.log` on macOS).
+
+**The server is not in the Connectors list.** Custom connectors are remote
+MCP servers only. A stdio server like this one is registered in
+`claude_desktop_config.json` via Settings → Developer → Edit Config, and
+appears after a full restart.
 
 **`ValidationError: api_key Field required`.** `SAM_API_KEY` is not in the
 process environment and no `.env` was found in the working directory. Put the
