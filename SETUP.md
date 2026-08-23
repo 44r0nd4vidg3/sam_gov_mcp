@@ -65,11 +65,12 @@ client's `env` block rather than relying on `.env`.
 ## Verifying the install
 
 ```bash
-python -c "from sam_gov_mcp.server import MCPServer; MCPServer(); print('ok')"
+python scripts/smoke_test.py
 ```
 
-This constructs the server without connecting to SAM.gov. It fails fast if
-the API key is missing or a dependency did not install.
+This launches the server exactly as an MCP client does, completes the
+protocol handshake, and makes one tool call. It needs no API key and no
+network access.
 
 Then start it:
 
@@ -119,6 +120,7 @@ Cline, Cursor, and Continue use the same shape: a `command`, `args`, and an
 pytest
 pytest --cov=sam_gov_mcp --cov-report=term-missing
 pytest tests/test_search_tool.py -v
+python scripts/smoke_test.py
 ```
 
 No network access or API key is needed; the HTTP client is mocked.
