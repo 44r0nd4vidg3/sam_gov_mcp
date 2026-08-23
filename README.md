@@ -119,7 +119,8 @@ cd sam_gov_mcp
 pip install -e .
 ```
 
-Python 3.10 or newer.
+Python 3.10 or newer, and pip 21.3 or newer (editable installs of a
+`pyproject.toml` project need PEP 660 support).
 
 ### 2. Get an API key
 
@@ -386,6 +387,10 @@ if something comes back null that should not, please
 [open an issue](https://github.com/44r0nd4vidg3/sam_gov_mcp/issues) with the
 raw payload.
 
+- [ ] Support mcp 2.0, which replaced the low-level server's decorator API
+      with constructor handlers and renamed FastMCP to MCPServer. The
+      dependency is pinned to `mcp>=1.27.0,<2.0.0` until that migration is
+      done and verified.
 - [ ] Optional server-side description fetching in the package
 - [ ] A details tool, once it returns more than search already does
 - [ ] Verify mappings against live payloads across every notice type

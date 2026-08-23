@@ -61,6 +61,10 @@ tests and CI that would have caught that.
 
 ### Changed
 
+- Pinned `mcp>=1.27.0,<2.0.0`. The original `>=1.0.0` had no upper bound, so a
+  fresh install picked up mcp 2.0, which removed the low-level server's
+  decorator API and broke server construction with
+  `AttributeError: 'Server' object has no attribute 'list_tools'`.
 - Moved to a `src/` layout with setuptools package discovery, so packaging
   mistakes cannot hide behind the source tree on `sys.path`.
 - The single-file server moved to `examples/simple_server.py`, gained a

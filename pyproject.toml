@@ -34,7 +34,12 @@ classifiers = [
 ]
 
 dependencies = [
-    "mcp>=1.0.0",
+    # Upper bound is deliberate. mcp 2.0 removed the low-level Server's
+    # decorator API (@server.list_tools / @server.call_tool) in favour of
+    # constructor handlers, and renamed FastMCP to MCPServer. Supporting it
+    # is a code change, not a version bump -- see the roadmap in the README.
+    # The floor is the oldest release this is actually tested against.
+    "mcp>=1.27.0,<2.0.0",
     "httpx>=0.24.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
