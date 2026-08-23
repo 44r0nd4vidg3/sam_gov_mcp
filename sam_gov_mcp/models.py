@@ -1,7 +1,8 @@
 """Pydantic models for SAM.gov API responses and requests."""
 
-from typing import Optional, List, Any, Dict
 from datetime import datetime
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -16,27 +17,27 @@ class PaginationInfo(BaseModel):
 class ContactInfo(BaseModel):
     """Contact information for opportunity."""
 
-    type: Optional[str] = Field(None, description="Contact type")
-    email: Optional[str] = Field(None, description="Contact email")
-    phone: Optional[str] = Field(None, description="Contact phone")
-    name: Optional[str] = Field(None, description="Contact name")
+    type: str | None = Field(None, description="Contact type")
+    email: str | None = Field(None, description="Contact email")
+    phone: str | None = Field(None, description="Contact phone")
+    name: str | None = Field(None, description="Contact name")
 
 
 class AwardInfo(BaseModel):
     """Award information for opportunity."""
 
-    amount: Optional[float] = Field(None, description="Award amount")
-    date: Optional[str] = Field(None, description="Award date")
-    awardee_name: Optional[str] = Field(None, description="Awardee name")
-    awardee_uei: Optional[str] = Field(None, description="Awardee UEI SAM")
+    amount: float | None = Field(None, description="Award amount")
+    date: str | None = Field(None, description="Award date")
+    awardee_name: str | None = Field(None, description="Awardee name")
+    awardee_uei: str | None = Field(None, description="Awardee UEI SAM")
 
 
 class ResourceLink(BaseModel):
     """Resource link for opportunity."""
 
     link: str = Field(..., description="Resource URL")
-    rel: Optional[str] = Field(None, description="Link relationship type")
-    title: Optional[str] = Field(None, description="Link title")
+    rel: str | None = Field(None, description="Link relationship type")
+    title: str | None = Field(None, description="Link title")
 
 
 class Opportunity(BaseModel):
@@ -47,16 +48,16 @@ class Opportunity(BaseModel):
     solicitation_number: str = Field(..., description="Solicitation number")
     posted_date: datetime = Field(..., description="Posted date")
     description: str = Field(..., description="Description or link to description")
-    agency: Optional[str] = Field(None, description="Sponsoring agency")
-    status: Optional[str] = Field(None, description="Opportunity status")
-    procurement_type: Optional[str] = Field(None, description="Procurement type")
-    set_aside_type: Optional[str] = Field(None, description="Set-aside type")
-    naics_code: Optional[str] = Field(None, description="NAICS code")
-    ui_link: Optional[str] = Field(None, description="Direct SAM.gov web interface link")
-    contact_info: Optional[List[ContactInfo]] = Field(None, description="Contact information")
-    award_info: Optional[AwardInfo] = Field(None, description="Award information")
-    resource_links: Optional[List[ResourceLink]] = Field(None, description="Resource links")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+    agency: str | None = Field(None, description="Sponsoring agency")
+    status: str | None = Field(None, description="Opportunity status")
+    procurement_type: str | None = Field(None, description="Procurement type")
+    set_aside_type: str | None = Field(None, description="Set-aside type")
+    naics_code: str | None = Field(None, description="NAICS code")
+    ui_link: str | None = Field(None, description="Direct SAM.gov web interface link")
+    contact_info: list[ContactInfo] | None = Field(None, description="Contact information")
+    award_info: AwardInfo | None = Field(None, description="Award information")
+    resource_links: list[ResourceLink] | None = Field(None, description="Resource links")
+    metadata: dict[str, Any] | None = Field(None, description="Additional metadata")
 
 
 class SearchRequest(BaseModel):
@@ -66,16 +67,16 @@ class SearchRequest(BaseModel):
     posted_to: str = Field(..., description="End date (MM/dd/yyyy)")
     limit: int = Field(default=1, ge=1, le=1000, description="Records per page")
     offset: int = Field(default=0, ge=0, description="Page offset")
-    ptype: Optional[str] = Field(None, description="Procurement type code")
-    ncode: Optional[str] = Field(None, description="NAICS code")
-    status: Optional[str] = Field(None, description="Status filter")
-    type_of_set_aside: Optional[str] = Field(None, description="Set-aside code")
-    keyword: Optional[str] = Field(None, description="Keyword search")
+    ptype: str | None = Field(None, description="Procurement type code")
+    ncode: str | None = Field(None, description="NAICS code")
+    status: str | None = Field(None, description="Status filter")
+    type_of_set_aside: str | None = Field(None, description="Set-aside code")
+    keyword: str | None = Field(None, description="Keyword search")
 
 
 class SearchResponse(BaseModel):
     """Search response."""
 
     pagination: PaginationInfo = Field(..., description="Pagination information")
-    opportunities: List[Opportunity] = Field(..., description="Opportunities list")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Response metadata")
+    opportunities: list[Opportunity] = Field(..., description="Opportunities list")
+    metadata: dict[str, Any] | None = Field(None, description="Response metadata")
