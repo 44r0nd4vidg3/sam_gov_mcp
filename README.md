@@ -1,3 +1,5 @@
+![SAM.gov Opportunities MCP Server](docs/readme-header.png)
+
 # SAM.gov Opportunities MCP Server
 
 [![CI](https://github.com/44r0nd4vidg3/sam_gov_mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/44r0nd4vidg3/sam_gov_mcp/actions/workflows/ci.yml)
