@@ -1,410 +1,300 @@
-# Sam_MCP_Tool
+# SAM.gov Opportunities MCP Server
 
-<img width="1166" height="691" alt="Screenshot 2026-06-05 at 1 18 01 PM" src="https://github.com/user-attachments/assets/960d84de-72d4-48b0-b17b-fef77abc721f" />
+<img width="1166" height="691" alt="Screenshot" src="https://github.com/user-attachments/assets/960d84de-72d4-48b0-b17b-fef77abc721f" />
 
-## The official SAM.gov opportunities MCP server
+An unofficial [Model Context Protocol](https://modelcontextprotocol.io) server for the
+[SAM.gov Get Opportunities Public API (v2)](https://open.gsa.gov/api/get-opportunities-public-api/),
+so an AI assistant can search federal procurement opportunities in natural language.
 
-https://open.gsa.gov/api/get-opportunities-public-api/
+> Not affiliated with, or endorsed by, GSA or SAM.gov.
 
-## Description
+## Status
 
-The SAM.gov Get Opportunities Public API (v2) is a synchronous service that provides comprehensive details on the latest active versions of published federal procurement opportunities.
+Alpha. One tool is implemented and covered by tests: `search_opportunities`.
+Response field mappings are written against the published v2 schema; if you
+hit a field that comes back null, please open an issue with the raw payload.
 
-## Repo Intent
+## Which server should I run?
 
-To create an easy-to-use Model Context Protocol (MCP) server that enables natural language access to SAM.gov procurement opportunities through AI assistants like Claude.
+The repo contains two implementations. They do not run together — pick one.
 
-## SAM.gov Opportunities MCP Server
+| | `sam_gov_mcp/` (package) | `sam_server.py` (simple mode) |
+|---|---|---|
+| Structure | modular, typed, tested | one file, ~150 lines |
+| Output | normalized JSON models | flat JSON list |
+| Descriptions | returns the description URL | fetches and cleans description text |
+| Caching | optional in-memory TTL cache | none |
+| Config | `.env` or environment | `SAM_API_KEY` only |
+| Recommended for | most users | quick local experiments |
 
-This project implements a robust, modular Model Context Protocol (MCP) server in Python for the SAM.gov Get Opportunities Public API (v2). This server provides 100% coverage for searching and retrieving the latest federal procurement opportunities.
+`sam_gov_mcp/` is the canonical implementation. `sam_server.py` is kept
+because its inline description fetching is genuinely useful; be aware that it
+issues one extra API call per result (throttled to two at a time), so large
+`limit` values are slow enough to hit client timeouts.
 
-### Key Features
+## Quick start
 
-- ✅ **Modular Architecture**: Cleanly separated concerns with pluggable components
-- ✅ **Full API Coverage**: Supports all SAM.gov search filters and parameters
-- ✅ **Type-Safe**: Built with Pydantic for data validation
-- ✅ **Async/Await**: Fully async implementation for high performance
-- ✅ **Caching**: Optional in-memory caching for improved performance
-- ✅ **Error Handling**: Comprehensive error handling with specific exception types
-- ✅ **Well-Tested**: Extensive unit tests for all components
-- ✅ **MCP Compatible**: Works with Claude, Cline, Cursor, and other MCP clients
-
-## Quick Start
-
-### 1. Installation
+### 1. Install
 
 ```bash
-# Clone the repository
 git clone https://github.com/44r0nd4vidg3/sam_gov_mcp.git
 cd sam_gov_mcp
-
-# Install the package
 pip install -e .
 ```
 
-### 2. Configuration
+Requires Python 3.10 or newer.
+
+### 2. Configure
 
 ```bash
-# Copy the environment template
 cp .env.example .env
+```
 
-# Add your SAM.gov API Key to .env
-# Get your key at: https://open.gsa.gov/api/get-opportunities-public-api/
+Then edit `.env` and set your key:
+
+```env
 SAM_API_KEY=your_actual_api_key_here
 ```
 
-### 3. Run the Server
+Get a key from your Account Details page on [SAM.gov](https://sam.gov)
+(production) or alpha.sam.gov (testing). `.env` is gitignored — do not commit
+a real key.
+
+### 3. Run
 
 ```bash
-python -m sam_gov_mcp
+sam-gov-mcp          # installed console script
+python -m sam_gov_mcp # equivalent
 ```
+
+The server speaks the stdio transport. Run directly it will simply wait for a
+client on stdin, which is expected.
 
 ### 4. Add to Claude Desktop
 
-Edit `~/.config/Claude/claude_desktop_config.json`:
+Edit `claude_desktop_config.json`
+(macOS: `~/Library/Application Support/Claude/`,
+Linux: `~/.config/Claude/`):
 
 ```json
 {
   "mcpServers": {
     "sam-gov": {
-      "command": "python",
-      "args": ["-m", "sam_gov_mcp"]
+      "command": "/absolute/path/to/.venv/bin/python",
+      "args": ["-m", "sam_gov_mcp"],
+      "env": {
+        "SAM_API_KEY": "your_actual_api_key_here"
+      }
     }
   }
 }
 ```
 
-Restart Claude Desktop and the SAM.gov tools will be available!
+Use an absolute path to the interpreter of the environment you installed
+into — Claude Desktop does not inherit your shell's `PATH` or virtualenv.
+Restart Claude Desktop afterwards.
 
-## API Overview
+To run simple mode instead, point `args` at the script:
+`"args": ["/absolute/path/to/sam_server.py"]`.
 
-The SAM.gov Get Opportunities API is a synchronous service that requires pagination. It provides details on active notices updated daily and archived notices updated weekly.
+## Available tools
 
-### Endpoints
+### `search_opportunities`
 
-- **Production**: https://api.sam.gov/opportunities/v2/search
-- **Alpha (Testing)**: https://api-alpha.sam.gov/opportunities/v2/search
+Search federal procurement opportunities.
 
-### Authentication
+| Parameter | Required | Description |
+|---|---|---|
+| `posted_from` | yes | Start date, `MM/dd/yyyy` |
+| `posted_to` | yes | End date, `MM/dd/yyyy` |
+| `limit` | no | Records per page, 1-1000 (default 10) |
+| `offset` | no | Page offset (default 0) |
+| `ptype` | no | Procurement type: `u`, `o`, `a`, `k`, `s`, `p` |
+| `ncode` | no | NAICS code, 1-6 digits |
+| `status` | no | `active`, `inactive`, `archived`, `cancelled`, `deleted` |
+| `type_of_set_aside` | no | `SBA`, `8A`, `WOSB`, `HUBZONE`, `VOSB`, `SDVOSB` |
+| `keyword` | no | Keyword search term |
 
-A public API Key is mandatory for all requests. You can generate this key in the Account Details page on SAM.gov (Production) or alpha.sam.gov (Alpha).
+The date range cannot exceed one year — a SAM.gov constraint, validated
+before the request is sent.
 
----
-
-## Tool Implementation Details
-
-### Mandatory Parameters
-
-The following parameters must be included in every search request:
-
-- **api_key**: Your public API key string.
-- **postedFrom**: Start date for the search (Format: MM/dd/yyyy).
-- **postedTo**: End date for the search (Format: MM/dd/yyyy).
-  - *Constraint*: The date range between postedFrom and postedTo cannot exceed one year.
-
-### Key Optional Filters
-
-- **ptype** (Procurement Type): Supports codes such as u (Justification), o (Solicitation), a (Award Notice), k (Combined Synopsis/Solicitation), and more.
-- **ncode**: NAICS Code (maximum of 6 digits).
-- **status**: Filter by active, inactive, archived, cancelled, or deleted.
-- **typeOfSetAside**: Use valid Set-Aside codes (e.g., SBA for Total Small Business, 8A for 8(a) Set-Aside, WOSB for Women-Owned Small Business).
-
-### Pagination
-
-- **limit**: Number of records per page. Max: 1000 (Default: 1).
-- **offset**: Page index for results (Default: 0).
-
----
-
-## Available MCP Tools
-
-### search_opportunities
-
-Search for federal procurement opportunities with flexible filtering.
-
-**Example Usage:**
-```
-Find me all active solicitations posted between January 1 and March 31, 2024
-```
-
-**Parameters:**
-- `posted_from` (required): Start date (MM/dd/yyyy)
-- `posted_to` (required): End date (MM/dd/yyyy)
-- `limit`: Records per page (1-1000)
-- `offset`: Page offset for pagination
-- `ptype`: Procurement type code
-- `ncode`: NAICS code
-- `status`: Status filter
-- `type_of_set_aside`: Set-aside code
-- `keyword`: Keyword search
-
-### get_opportunity_details
-
-Get detailed information about a specific opportunity (including contacts, attachments, awards).
-
-**Parameters:**
-- `opportunity_id`: The unique ID of the opportunity
-- `solicitation_number`: The solicitation number
-
----
-
-## Response Mapping
-
-The server parses the following key data from the API's JSON response:
-
-- **Metadata**: totalRecords, limit, and offset.
-- **Opportunity Details**: title, solicitationNumber, postedDate, and description.
-  - *Note*: The description field is a link; the api_key must be appended to this link to download the actual content.
-- **Award Information**: Includes data.award.amount, data.award.date, and awardee details like name and ueiSAM.
-- **Contacts & Links**: Point of Contact details (email, phone), resourceLinks for direct attachment downloads, and uiLink for the direct SAM.gov web interface.
-
----
-
-## Error Handling
-
-The server is designed to handle and surface the following HTTP response codes and scenarios:
-
-- **400 (Bad Request)**: Triggered by invalid date formats, date ranges exceeding one year, or non-numeric limit/offset values.
-- **404 (No Data Found)**: Returned when no opportunities match the search criteria.
-- **Authentication Errors**: Handles cases where the api_key is missing or invalid.
-- **500 (Internal Server Error)**: General API service failures.
-
----
-
-## Project Structure
+Example prompts:
 
 ```
-sam_gov_mcp/
-├── __init__.py              # Package initialization
-├── __main__.py              # Entry point
-├── config.py                # Configuration management
-├── models.py                # Pydantic data models
-├── errors.py                # Custom exceptions
-├── api_client.py            # SAM.gov API client
-├── response_mapper.py       # Response normalization
-├── validators.py            # Parameter validation
-├── cache.py                 # Caching layer
-├── server.py                # MCP Server implementation
-└── tools/                   # MCP Tools
-    ├── __init__.py
-    ├── base.py              # Base tool class
-    ├── search.py            # Search opportunities tool
-    └── details.py           # Get opportunity details tool
-
-tests/                        # Comprehensive test suite
-├── test_validators.py
-├── test_api_client.py
-├── test_response_mapper.py
-└── test_cache.py
-
-Configuration files:
-├── pyproject.toml           # Project configuration
-├── .env.example             # Environment template
-├── .gitignore              # Git ignore rules
-├── SETUP.md                # Detailed setup guide
-└── README.md               # This file
+Find active solicitations posted between January 1 and March 31, 2024
+Search 8(a) set-aside opportunities in NAICS 236115 from Q1 2024
+Get the next page of results (limit 100, offset 100)
 ```
 
----
+Results are returned as JSON:
+
+```json
+{
+  "status": "success",
+  "cached": false,
+  "data": {
+    "pagination": { "total_records": 42, "limit": 10, "offset": 0 },
+    "opportunities": [
+      {
+        "id": "...",
+        "title": "...",
+        "solicitation_number": "...",
+        "posted_date": "2024-01-02T00:00:00",
+        "description": "https://api.sam.gov/.../description",
+        "agency": "...",
+        "ui_link": "https://sam.gov/opp/..."
+      }
+    ]
+  }
+}
+```
+
+`description` is a URL, not prose. Fetching it requires appending your API
+key. The server deliberately does **not** do that: tool output is handed to a
+language model and ends up in transcripts and logs, and a credential does not
+belong there. Fetch it server-side if you need the text, or use simple mode,
+which retrieves and cleans it before returning.
+
+Errors are returned in the same envelope rather than raised, so the model
+gets something it can act on:
+
+```json
+{
+  "status": "error",
+  "error_type": "validation_error",
+  "message": "Date range cannot exceed 365 days. Your range: 730 days"
+}
+```
+
+`error_type` is one of `validation_error`, `api_error`, or
+`unexpected_error`. API failures map to typed exceptions internally:
+401/403 → `AuthenticationError`, 400 → `BadRequestError`,
+404 → `NotFoundError`, 429 → rate-limit `APIError`, 5xx → `ServerError`.
+Transport failures and 5xx responses are retried with exponential backoff
+(`SAM_MAX_RETRIES`, default 3).
 
 ## Configuration
 
-All configuration is managed through environment variables in the `.env` file:
+All settings are read from the environment, or from `.env` in the working
+directory.
 
-```env
-# SAM.gov API Configuration
-SAM_API_KEY=your_public_api_key_here
-SAM_API_URL=https://api.sam.gov/opportunities/v2/search
-SAM_ENVIRONMENT=production    # or 'alpha'
-SAM_TIMEOUT=30
+| Variable | Default | Description |
+|---|---|---|
+| `SAM_API_KEY` | — | **Required.** SAM.gov public API key |
+| `SAM_API_URL` | production search URL | Override the endpoint |
+| `SAM_ENVIRONMENT` | `production` | `production` or `alpha` |
+| `SAM_TIMEOUT` | `30` | Request timeout, seconds |
+| `SAM_MAX_RETRIES` | `3` | Attempts for transport/5xx failures |
+| `MCP_SERVER_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+| `MCP_SERVER_DEBUG` | `False` | Debug mode |
+| `CACHE_ENABLED` | `False` | Enable in-memory caching |
+| `CACHE_TTL` | `3600` | Cache lifetime, seconds |
+| `CACHE_TYPE` | `memory` | `memory` or `none` |
 
-# MCP Server Configuration
-MCP_SERVER_PORT=8000
-MCP_SERVER_HOST=0.0.0.0
-MCP_SERVER_DEBUG=False
+There is no host or port setting: the stdio transport means the MCP client
+launches the process and talks to it over a pipe.
 
-# Cache Configuration
-CACHE_ENABLED=False
-CACHE_TTL=3600
-CACHE_TYPE=memory
-```
+With `CACHE_ENABLED=True`, identical searches within the TTL are served from
+memory and the response carries `"cached": true`. The cache lives in the
+server process and is lost on restart.
 
----
-
-## Testing
-
-### Run All Tests
+## Development
 
 ```bash
+pip install -e ".[dev]"
 pytest
+ruff check .
 ```
 
-### Run Specific Test Suites
+CI runs the test suite and linter on Python 3.10, 3.11, and 3.12, and
+separately asserts that the server can be constructed — the check that would
+have caught the import and wiring failures fixed in 0.2.0.
 
-```bash
-# Validators
-pytest tests/test_validators.py -v
+## Project structure
 
-# API Client
-pytest tests/test_api_client.py -v
+```
+sam_gov_mcp/
+├── __init__.py          # Package initialization
+├── __main__.py          # Entry point (stdio transport)
+├── config.py            # Configuration (env + .env)
+├── models.py            # Pydantic data models
+├── errors.py            # Custom exceptions
+├── api_client.py        # SAM.gov HTTP client
+├── response_mapper.py   # Response normalization
+├── validators.py        # Parameter validation
+├── cache.py             # Caching layer
+├── server.py            # MCP server
+└── tools/
+    ├── base.py          # Base tool class
+    └── search.py        # search_opportunities
 
-# Response Mapper
-pytest tests/test_response_mapper.py -v
+tests/
+├── test_api_client.py
+├── test_cache.py
+├── test_response_mapper.py
+├── test_search_tool.py
+├── test_server.py
+└── test_validators.py
 
-# Cache
-pytest tests/test_cache.py -v
+sam_server.py            # Simple mode (single-file server)
 ```
 
-### Run with Coverage
+## Adding a tool
 
-```bash
-pytest --cov=sam_gov_mcp --cov-report=html tests/
-```
-
----
-
-## Usage Examples
-
-### In Claude Desktop
-
-1. **Simple Search:**
-   ```
-   Find me all active solicitations posted between January 1 and March 31, 2024
-   ```
-
-2. **Filtered Search:**
-   ```
-   Search for 8(a) set-aside opportunities in NAICS code 236115 from Q1 2024
-   ```
-
-3. **Pagination:**
-   ```
-   Get the next page of results (limit 100, offset 100) for IT services
-   ```
-
-### Direct API Call Example
-
-```python
-import asyncio
-from sam_gov_mcp.server import MCPServer
-from sam_gov_mcp.config import AppConfig
-
-async def main():
-    config = AppConfig()
-    server = MCPServer(config=config)
-    
-    # Call search tool directly
-    result = await server.tools["search_opportunities"].execute(
-        posted_from="01/01/2024",
-        posted_to="03/31/2024",
-        ptype="o",
-        status="active",
-        limit=50
-    )
-    
-    print(result)
-
-asyncio.run(main())
-```
-
----
-
-## Performance Optimization
-
-### Enable Caching
-
-```env
-CACHE_ENABLED=True
-CACHE_TYPE=memory
-CACHE_TTL=3600
-```
-
-Caching search results for 1 hour significantly improves performance for repeated queries.
-
----
-
-## Extending the Server
-
-To add new tools:
-
-1. Create a new file in `sam_gov_mcp/tools/`
-2. Extend the `BaseTool` class
-3. Implement required methods: `name`, `description`, `input_schema`, `execute`
-4. Register in `MCPServer.tools` dictionary
-5. Add tests in `tests/`
-
-Example:
+1. Add a module under `sam_gov_mcp/tools/`.
+2. Subclass `BaseTool` and implement `name`, `description`, `input_schema`,
+   and `execute`.
+3. Export it from `sam_gov_mcp/tools/__init__.py`.
+4. Register it in `MCPServer.tools`.
+5. Add tests.
 
 ```python
 from sam_gov_mcp.tools.base import BaseTool
 
-class MyCustomTool(BaseTool):
+
+class MyTool(BaseTool):
     @property
     def name(self) -> str:
-        return "my_custom_tool"
-    
+        return "my_tool"
+
     @property
     def description(self) -> str:
-        return "My custom tool description"
-    
+        return "What this tool does."
+
     @property
-    def input_schema(self) -> Dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                # Define your parameters
-            },
-            "required": ["param1"]
-        }
-    
-    async def execute(self, **kwargs) -> Dict[str, Any]:
-        # Implement your logic
+    def input_schema(self) -> dict:
+        return {"type": "object", "properties": {}, "required": []}
+
+    async def execute(self, **kwargs) -> dict:
         return {"status": "success", "data": {}}
 ```
 
----
-
 ## Troubleshooting
 
-### Invalid API Key
-```
-AuthenticationError: Authentication failed: Invalid API key
-```
-Check your API key in the `.env` file. Get a new one at https://open.gsa.gov/api/get-opportunities-public-api/
+**Server shows no tools in Claude Desktop.** Run the command from your config
+by hand — most failures are a wrong interpreter path or a missing
+`SAM_API_KEY`. Errors go to stderr; Claude Desktop's MCP log captures them.
 
-### Date Range Too Large
-```
-ValidationError: Date range cannot exceed 365 days
-```
-Use a date range of 1 year or less between `posted_from` and `posted_to`.
+**`ValidationError: api_key Field required`.** No `SAM_API_KEY` in the
+environment or in a `.env` in the working directory. Claude Desktop does not
+run from your project directory, so prefer the config's `env` block.
 
-### Connection Timeout
-Check your internet connection and increase `SAM_TIMEOUT` in `.env` file.
+**`Date range cannot exceed 365 days`.** A SAM.gov limit; narrow the range.
 
-### Cache Issues
-Set `CACHE_ENABLED=False` to temporarily disable caching while debugging.
+**Rate limited.** SAM.gov enforces per-key daily limits. Set
+`CACHE_ENABLED=True` to avoid repeating identical searches.
 
----
+## Roadmap
+
+- Optional server-side description fetching in the package (simple mode does
+  this today)
+- A details tool, once it can return more than what search already provides
+- Verification of response mappings against live payloads across notice types
 
 ## Contributing
 
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Submit a pull request
-
----
+Fork, branch, add tests, open a PR. CI must pass.
 
 ## License
 
-MIT License - See LICENSE file for details
-
----
-
-## Support
-
-For issues, questions, or feature requests, please open an issue on GitHub.
-
-For SAM.gov API documentation, visit: https://open.gsa.gov/api/get-opportunities-public-api/
+MIT — see [LICENSE](LICENSE).

@@ -1,217 +1,143 @@
-# SAM.gov Opportunities MCP Setup Guide
+# Setup Guide
+
+Detailed setup for the SAM.gov Opportunities MCP Server. For a summary, see
+the [README](README.md).
+
+## Requirements
+
+- Python 3.10 or newer
+- A SAM.gov public API key
+
+## Getting an API key
+
+1. Sign in at [sam.gov](https://sam.gov) (or alpha.sam.gov for testing).
+2. Open **Account Details**.
+3. Request a public API key under **API Keys**.
+
+Keys are per-account and rate limited per day. Treat one like a password.
 
 ## Installation
 
-### Prerequisites
-- Python 3.8+
-- pip
-- A valid SAM.gov API Key
-
-### Setup Steps
-
-1. Install the package:
-
 ```bash
+git clone https://github.com/44r0nd4vidg3/sam_gov_mcp.git
+cd sam_gov_mcp
+
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+
 pip install -e .
 ```
 
-2. Install dev dependencies:
+For development, install the test and lint extras instead:
 
 ```bash
 pip install -e ".[dev]"
 ```
 
-3. Create `.env` file:
+## Configuration
+
+Copy the template and fill in your key:
 
 ```bash
 cp .env.example .env
 ```
 
-4. Add your SAM.gov API Key to `.env`:
-
 ```env
 SAM_API_KEY=your_actual_api_key_here
-```
-
-## Running the Server
-
-### Direct Execution
-
-```bash
-python -m sam_gov_mcp
-```
-
-### Claude Desktop Configuration
-
-Add to `~/.config/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "sam-gov": {
-      "command": "python",
-      "args": ["-m", "sam_gov_mcp"]
-    }
-  }
-}
-```
-
-### Cline/Cursor Configuration
-
-Add to your MCP settings:
-
-```json
-{
-  "mcpServers": {
-    "sam-gov": {
-      "command": "python",
-      "args": ["-m", "sam_gov_mcp"]
-    }
-  }
-}
-```
-
-## Available Tools
-
-### search_opportunities
-
-Search for federal procurement opportunities.
-
-**Required Parameters:**
-- `posted_from` (string): Start date in MM/dd/yyyy format
-- `posted_to` (string): End date in MM/dd/yyyy format
-
-**Optional Parameters:**
-- `limit` (integer, 1-1000): Records per page (default: 10)
-- `offset` (integer): Page offset (default: 0)
-- `ptype` (string): Procurement type
-  - `u` = Justification
-  - `o` = Solicitation
-  - `a` = Award Notice
-  - `k` = Combined Synopsis/Solicitation
-- `ncode` (string): NAICS code (1-6 digits)
-- `status` (string): Status filter
-  - `active`, `inactive`, `archived`, `cancelled`, `deleted`
-- `type_of_set_aside` (string): Set-aside type
-  - `SBA`, `8A`, `WOSB`, `HUBZONE`, `VOSB`, `SDVOSB`
-- `keyword` (string): Keyword search term
-
-**Example:**
-```json
-{
-  "posted_from": "01/01/2024",
-  "posted_to": "03/31/2024",
-  "limit": 50,
-  "ptype": "o",
-  "status": "active"
-}
-```
-
-### get_opportunity_details
-
-Get detailed information about a specific opportunity.
-
-**Parameters (one required):**
-- `opportunity_id` (string): The opportunity ID
-- `solicitation_number` (string): The solicitation number
-
-## Configuration
-
-Set via `.env` file:
-
-```env
-# SAM.gov API
-SAM_API_KEY=your_api_key
 SAM_ENVIRONMENT=production
 SAM_TIMEOUT=30
+SAM_MAX_RETRIES=3
 
-# MCP Server
+MCP_SERVER_LOG_LEVEL=INFO
 MCP_SERVER_DEBUG=False
 
-# Cache
 CACHE_ENABLED=False
 CACHE_TTL=3600
 CACHE_TYPE=memory
 ```
 
-## Testing
+`.env` is gitignored. Environment variables take precedence over the file.
 
-Run all tests:
+`.env` is read from the **current working directory**. An MCP client launches
+the server from its own directory, so for client use set the key in the
+client's `env` block rather than relying on `.env`.
+
+## Verifying the install
+
+```bash
+python -c "from sam_gov_mcp.server import MCPServer; MCPServer(); print('ok')"
+```
+
+This constructs the server without connecting to SAM.gov. It fails fast if
+the API key is missing or a dependency did not install.
+
+Then start it:
+
+```bash
+sam-gov-mcp
+```
+
+It will wait silently for a client on stdin. That is correct behaviour;
+`Ctrl-C` to exit.
+
+## Connecting a client
+
+### Claude Desktop
+
+`claude_desktop_config.json` lives at:
+
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Linux: `~/.config/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "sam-gov": {
+      "command": "/absolute/path/to/sam_gov_mcp/.venv/bin/python",
+      "args": ["-m", "sam_gov_mcp"],
+      "env": {
+        "SAM_API_KEY": "your_actual_api_key_here"
+      }
+    }
+  }
+}
+```
+
+Use absolute paths. Claude Desktop does not inherit your shell environment,
+so `python` alone will usually resolve to the wrong interpreter. Restart the
+app after editing.
+
+### Other clients
+
+Cline, Cursor, and Continue use the same shape: a `command`, `args`, and an
+`env` block. Point them at the same interpreter.
+
+## Running the tests
 
 ```bash
 pytest
+pytest --cov=sam_gov_mcp --cov-report=term-missing
+pytest tests/test_search_tool.py -v
 ```
 
-Run with coverage:
-
-```bash
-pytest --cov=sam_gov_mcp tests/
-```
-
-Run specific test suite:
-
-```bash
-pytest tests/test_validators.py -v
-pytest tests/test_api_client.py -v
-pytest tests/test_response_mapper.py -v
-pytest tests/test_cache.py -v
-```
-
-## Architecture
-
-```
-sam_gov_mcp/
-├── __init__.py              # Package initialization
-├── __main__.py              # Entry point
-├── config.py                # Configuration management
-├── models.py                # Pydantic data models
-├── errors.py                # Custom exceptions
-├── api_client.py            # SAM.gov API client
-├── response_mapper.py       # Response normalization
-├── validators.py            # Parameter validation
-├── cache.py                 # Caching layer
-├── server.py                # MCP Server implementation
-└── tools/                   # MCP Tools
-    ├── __init__.py
-    ├── base.py              # Base tool class
-    ├── search.py            # Search opportunities tool
-    └── details.py           # Get opportunity details tool
-```
-
-## Performance Tips
-
-### Enable Caching
-
-```env
-CACHE_ENABLED=True
-CACHE_TYPE=memory
-CACHE_TTL=3600
-```
-
-This caches search results for 1 hour to improve performance for repeated queries.
+No network access or API key is needed; the HTTP client is mocked.
 
 ## Troubleshooting
 
-### Invalid API Key
+**`ModuleNotFoundError: No module named 'sam_gov_mcp'`** — the client is
+using a different interpreter than the one you installed into. Use an
+absolute path to the venv's `python`.
 
-```
-AuthenticationError: Authentication failed: Invalid API key
-```
+**`ValidationError: api_key Field required`** — `SAM_API_KEY` is not set in
+the process environment, and no `.env` was found in the working directory.
 
-Check your API key in `.env` file.
+**Server starts but no tools appear** — check the client's MCP log. Logs go
+to stderr; stdout is reserved for the JSON-RPC stream.
 
-### Date Range Too Large
+**`AuthenticationError: invalid or missing API key`** — the key was rejected.
+Confirm it is the production key if `SAM_ENVIRONMENT=production`; production
+and alpha keys are not interchangeable.
 
-```
-ValidationError: Date range cannot exceed 365 days
-```
-
-Use a date range of 1 year or less.
-
-### Connection Timeout
-
-Check internet connection and increase `SAM_TIMEOUT` in `.env`.
-
-## License
-
-MIT
+**Slow responses** — narrow the date range or lower `limit`. Set
+`CACHE_ENABLED=True` to serve repeated searches from memory.
