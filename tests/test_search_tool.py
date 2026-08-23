@@ -86,6 +86,33 @@ class TestSearchOpportunitiesTool:
         assert api_client.search.call_args.kwargs["ptype"] == "o"
 
     @pytest.mark.asyncio
+    async def test_title_is_forwarded_to_the_api(self, api_client):
+        """SAM.gov v2 filters on 'title'; it has no 'keyword' parameter.
+
+        Regression: the tool used to send 'keyword', which the API silently
+        ignores -- every search came back unfiltered while looking correct.
+        """
+        result = await build_tool(api_client).execute(
+            posted_from="01/01/2024",
+            posted_to="03/31/2024",
+            title="web application",
+        )
+
+        assert result["status"] == "success"
+        assert api_client.search.call_args.kwargs["title"] == "web application"
+
+    @pytest.mark.asyncio
+    async def test_unsupported_filters_are_not_forwarded(self, api_client):
+        """An unknown filter must not be smuggled into the query string."""
+        await build_tool(api_client).execute(
+            posted_from="01/01/2024",
+            posted_to="03/31/2024",
+            keyword="web application",
+        )
+
+        assert "keyword" not in api_client.search.call_args.kwargs
+
+    @pytest.mark.asyncio
     async def test_api_errors_are_returned_not_raised(self, api_client):
         api_client.search = AsyncMock(
             side_effect=AuthenticationError("bad key", status_code=401)

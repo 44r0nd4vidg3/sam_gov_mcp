@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **The `keyword` filter did nothing.** SAM.gov v2 has no `keyword`
+  parameter, so it was accepted, sent, and silently ignored — every "keyword
+  search" returned the unfiltered result set while looking authoritative. A
+  two-month search for "web application development" came back with hex nuts
+  and radiators, 32,389 records deep. Replaced with `title`, which the API
+  actually supports.
+- Unawarded notices return `{"award": {"awardee": {}}}`, a truthy dict with
+  nothing in it. The mapper built an `AwardInfo` of nulls instead of omitting
+  the award.
+
+### Added
+
+- Troubleshooting for the macOS TCC failure: a server launched from
+  `~/Documents`, `~/Desktop`, or `~/Downloads` dies with `PermissionError` on
+  `pyvenv.cfg`, because the client lacks folder access and the subprocess
+  inherits it.
+- Platform-neutral Python and virtualenv setup in the README, including
+  Windows paths, and a note that `title` is not full-text search.
+
 ## [0.2.0] — 2026-08-23
 
 The 0.1.0 package could not start. This release makes it run, and adds the

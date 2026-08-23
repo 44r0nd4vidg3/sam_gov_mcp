@@ -21,7 +21,7 @@ class SearchOpportunitiesTool(BaseTool):
         return (
             "Search federal procurement opportunities on SAM.gov. Supports "
             "filtering by date range, procurement type, NAICS code, status, "
-            "and set-aside type. The date range cannot exceed one year."
+            "set-aside type, and title. The date range cannot exceed one year."
         )
 
     @property
@@ -72,9 +72,13 @@ class SearchOpportunitiesTool(BaseTool):
                     "enum": ["SBA", "8A", "WOSB", "HUBZONE", "VOSB", "SDVOSB"],
                     "description": "Set-aside type",
                 },
-                "keyword": {
+                "title": {
                     "type": "string",
-                    "description": "Keyword search term",
+                    "description": (
+                        "Match against the opportunity title. SAM.gov v2 has "
+                        "no full-text search, so this does not search "
+                        "descriptions or attachments."
+                    ),
                 },
             },
             "required": ["posted_from", "posted_to"],
@@ -181,7 +185,7 @@ class SearchOpportunitiesTool(BaseTool):
                 kwargs["type_of_set_aside"]
             )
 
-        if kwargs.get("keyword"):
-            filters["keyword"] = kwargs["keyword"]
+        if kwargs.get("title"):
+            filters["title"] = kwargs["title"]
 
         return filters

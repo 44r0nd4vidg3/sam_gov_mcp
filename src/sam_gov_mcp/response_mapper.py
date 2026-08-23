@@ -148,12 +148,21 @@ class ResponseMapper:
             return None
 
         awardee = award.get("awardee") or {}
-        return AwardInfo(
+        info = AwardInfo(
             amount=award.get("amount"),
             date=award.get("date"),
             awardee_name=_first(awardee, "name") or award.get("awardeeName"),
             awardee_uei=_first(awardee, "ueiSAM") or award.get("awardeeUeiSAM"),
         )
+
+        # Unawarded notices come back as {"award": {"awardee": {}}}, which is
+        # truthy but carries nothing. Return None rather than a shell of nulls.
+        if not any(
+            (info.amount, info.date, info.awardee_name, info.awardee_uei)
+        ):
+            return None
+
+        return info
 
     @staticmethod
     def _parse_date(value: str | None) -> datetime:

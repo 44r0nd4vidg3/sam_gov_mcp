@@ -140,6 +140,42 @@ class TestResponseMapper:
         assert award.awardee_name == "Test Company"
         assert award.awardee_uei == "123456789ABC"
 
+    def test_empty_award_block_maps_to_none(self, mapper):
+        """Unawarded notices return {"award": {"awardee": {}}}.
+
+        That dict is truthy, so the mapper used to build an AwardInfo with
+        every field null instead of omitting the award entirely.
+        """
+        response = mapper.map_search_response(
+            _envelope(
+                {
+                    "noticeId": "123",
+                    "title": "Test Opportunity",
+                    "solicitationNumber": "SOL-001",
+                    "postedDate": "2024-01-01T00:00:00Z",
+                    "award": {"awardee": {}},
+                }
+            )
+        )
+
+        assert response.opportunities[0].award_info is None
+
+    def test_partial_award_is_kept(self, mapper):
+        """An award with any real value is still returned."""
+        response = mapper.map_search_response(
+            _envelope(
+                {
+                    "noticeId": "123",
+                    "title": "Test Opportunity",
+                    "solicitationNumber": "SOL-001",
+                    "postedDate": "2024-01-01T00:00:00Z",
+                    "award": {"amount": "41685.48", "awardee": {}},
+                }
+            )
+        )
+
+        assert response.opportunities[0].award_info.amount == 41685.48
+
     def test_api_key_is_never_embedded_in_output(self, mapper):
         """The API key must not leak into tool output.
 

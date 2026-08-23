@@ -111,24 +111,57 @@ JSON envelope the assistant can read and explain.
 
 ## Quick start
 
-### 1. Install
+### 1. Check your Python
+
+You need **Python 3.10 or newer** and **pip 21.3 or newer** (editable installs
+of a `pyproject.toml` project need PEP 660 support).
+
+```bash
+python3 --version        # macOS / Linux
+py --version             # Windows
+```
+
+If that is older than 3.10, install a newer Python however your platform
+prefers — python.org installers, your distribution's package manager, pyenv,
+uv, Homebrew. This project has no opinion about which; it only needs
+`python -V` inside the virtual environment to report 3.10 or newer.
+
+If you have several versions installed, name the one you want explicitly:
+
+```bash
+for v in 3.14 3.13 3.12 3.11 3.10; do command -v python$v; done
+```
+
+### 2. Install
 
 ```bash
 git clone https://github.com/44r0nd4vidg3/sam_gov_mcp.git
 cd sam_gov_mcp
-pip install -e .
+
+python3 -m venv .venv                 # or python3.12 -m venv .venv
+source .venv/bin/activate             # Windows: .venv\Scripts\activate
+
+python -m pip install --upgrade pip
+python -m pip install -e .
 ```
 
-Python 3.10 or newer, and pip 21.3 or newer (editable installs of a
-`pyproject.toml` project need PEP 660 support).
+Confirm it works before going further:
 
-### 2. Get an API key
+```bash
+python scripts/smoke_test.py
+```
+
+That launches the server exactly as an MCP client does and completes a real
+protocol handshake. It needs no API key and no network access. If it fails
+here, no amount of client configuration will help.
+
+### 3. Get an API key
 
 Sign in at [sam.gov](https://sam.gov), open **Account Details**, and request a
 public API key. It is free. Keys are rate limited per day, so treat one like
 a password.
 
-### 3. Connect it to your assistant
+### 4. Connect it to your assistant
 
 For **Claude Desktop**, this server is added through the config file, not
 through the Connectors UI. "Custom connectors" in the Claude window are for
@@ -157,10 +190,12 @@ That opens:
 }
 ```
 
-Use an **absolute path** to the interpreter you installed into. Claude
-Desktop does not inherit your shell's `PATH` or your active virtualenv, and a
-bare `python` is the most common reason a server shows up with no tools.
-Restart the app after editing.
+Use an **absolute path** to the interpreter you installed into — on Windows
+that is `...\\.venv\\Scripts\\python.exe`, with backslashes escaped in JSON.
+Claude Desktop does not inherit your shell's `PATH` or your active
+virtualenv, and a bare `python` is the most common reason a server shows up
+with no tools. `source .venv/bin/activate && which python` prints the exact
+string to paste (`where python` on Windows).
 
 Quit Claude Desktop completely and reopen it — a window reload will not pick
 up the change.
@@ -173,7 +208,7 @@ If the server does not appear, its stderr is captured here:
 tail -n 40 -f ~/Library/Logs/Claude/mcp-server-sam-gov.log
 ```
 
-### 4. Ask for something
+### 5. Ask for something
 
 ```
 Find active solicitations posted between January 1 and March 31, 2024
@@ -196,13 +231,18 @@ Get the next page of those results
 | `ncode` | no | NAICS code, 1–6 digits |
 | `status` | no | `active`, `inactive`, `archived`, `cancelled`, `deleted` |
 | `type_of_set_aside` | no | `SBA`, `8A`, `WOSB`, `HUBZONE`, `VOSB`, `SDVOSB` |
-| `keyword` | no | Keyword search term |
+| `title` | no | Match against the opportunity title |
 
 Procurement types: `u` justification, `o` solicitation, `a` award notice,
 `k` combined synopsis/solicitation, `s` special notice, `p` presolicitation.
 
 The date range cannot exceed one year. That is a SAM.gov constraint, checked
 before the request is sent so you do not spend a call on it.
+
+`title` matches the opportunity title only. SAM.gov v2 offers no full-text
+search over descriptions or attachments, so the practical way to narrow by
+subject is the NAICS code — `541511` for custom programming, `541512` for
+systems design.
 
 ### What comes back
 
@@ -378,6 +418,17 @@ class MyTool(BaseTool):
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow.
 
 ## Troubleshooting
+
+**Server dies immediately with `PermissionError: [Errno 1] Operation not
+permitted` on `pyvenv.cfg`** (macOS). Not a file-permission problem — macOS
+gates `~/Documents`, `~/Desktop`, and `~/Downloads` per application. Claude
+Desktop lacks access, and the Python subprocess it launches inherits that
+denial, so a correct path to a working interpreter still fails. The same
+command succeeds in your terminal, which has the permission. Either keep the
+project outside those folders (`~/Projects/sam_gov_mcp`) or grant access in
+System Settings → Privacy & Security → Files and Folders. Moving it is the
+sturdier fix. Recreate the virtual environment after moving — `pyvenv.cfg`
+and the activate scripts hold absolute paths.
 
 **No tools appear in the client.** Run the exact command from your config by
 hand. Nearly always a wrong interpreter path or a missing `SAM_API_KEY`.
