@@ -1,9 +1,10 @@
 """Search opportunities tool."""
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
+
+from sam_gov_mcp.errors import APIError, ValidationError
 from sam_gov_mcp.tools.base import BaseTool
-from sam_gov_mcp.errors import ValidationError, APIError
 
 logger = logging.getLogger(__name__)
 
@@ -17,14 +18,14 @@ class SearchOpportunitiesTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return """Search for federal procurement opportunities on SAM.gov.
-        
-        Supports filtering by date range, procurement type, NAICS code, status, and set-aside type.
-        Date range cannot exceed 1 year.
-        """
+        return (
+            "Search federal procurement opportunities on SAM.gov. Supports "
+            "filtering by date range, procurement type, NAICS code, status, "
+            "and set-aside type. The date range cannot exceed one year."
+        )
 
     @property
-    def input_schema(self) -> Dict[str, Any]:
+    def input_schema(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
@@ -51,7 +52,11 @@ class SearchOpportunitiesTool(BaseTool):
                 },
                 "ptype": {
                     "type": "string",
-                    "description": "Procurement type (u=Justification, o=Solicitation, a=Award, k=Combined)",
+                    "description": (
+                        "Procurement type (u=Justification, o=Solicitation, "
+                        "a=Award, k=Combined Synopsis/Solicitation, "
+                        "s=Special Notice, p=Presolicitation)"
+                    ),
                 },
                 "ncode": {
                     "type": "string",
@@ -75,25 +80,19 @@ class SearchOpportunitiesTool(BaseTool):
             "required": ["posted_from", "posted_to"],
         }
 
-    async def execute(self, **kwargs) -> Dict[str, Any]:
-        """Execute search.
+    async def execute(self, **kwargs) -> dict[str, Any]:
+        """Execute a search.
 
         Args:
-            posted_from: Start date (MM/dd/yyyy)
-            posted_to: End date (MM/dd/yyyy)
-            limit: Records per page
-            offset: Page offset
-            ptype: Procurement type code
-            ncode: NAICS code
-            status: Status filter
-            type_of_set_aside: Set-aside code
-            keyword: Keyword search
+            **kwargs: See :attr:`input_schema`.
 
         Returns:
-            Search results with opportunities
+            A result envelope: ``{"status": "success", "data": ...}`` on
+            success, or ``{"status": "error", "error_type": ..., ...}``.
+            Errors are returned rather than raised so the model receives a
+            usable message instead of a transport-level failure.
         """
         try:
-            # Validate required parameters
             posted_from = kwargs.get("posted_from")
             posted_to = kwargs.get("posted_to")
             limit = kwargs.get("limit", 10)
@@ -102,34 +101,29 @@ class SearchOpportunitiesTool(BaseTool):
             if not posted_from or not posted_to:
                 raise ValidationError("posted_from and posted_to are required")
 
-            # Validate dates
             self.validator.validate_date_range(posted_from, posted_to)
-
-            # Validate pagination
             limit, offset = self.validator.validate_pagination(limit, offset)
 
-            # Build filters
-            filters = {}
-            
-            if kwargs.get("ptype"):
-                filters["ptype"] = self.validator.validate_procurement_type(kwargs["ptype"])
-            
-            if kwargs.get("ncode"):
-                filters["ncode"] = self.validator.validate_naics_code(kwargs["ncode"])
-            
-            if kwargs.get("status"):
-                filters["status"] = self.validator.validate_status(kwargs["status"])
-            
-            if kwargs.get("type_of_set_aside"):
-                filters["typeOfSetAside"] = self.validator.validate_set_aside_code(
-                    kwargs["type_of_set_aside"]
-                )
-            
-            if kwargs.get("keyword"):
-                filters["keyword"] = kwargs["keyword"]
+            filters = self._build_filters(kwargs)
 
-            # Call API
-            logger.info(f"Searching opportunities: {posted_from} to {posted_to}")
+            cache_key = None
+            if self.cache_manager is not None:
+                cache_key = self.cache_manager.make_key(
+                    self.name,
+                    {
+                        "posted_from": posted_from,
+                        "posted_to": posted_to,
+                        "limit": limit,
+                        "offset": offset,
+                        **filters,
+                    },
+                )
+                cached = await self.cache_manager.get(cache_key)
+                if cached is not None:
+                    logger.info("Returning cached results for %s", cache_key)
+                    return {"status": "success", "cached": True, "data": cached}
+
+            logger.info("Searching opportunities: %s to %s", posted_from, posted_to)
             raw_response = await self.api_client.search(
                 posted_from=posted_from,
                 posted_to=posted_to,
@@ -138,36 +132,56 @@ class SearchOpportunitiesTool(BaseTool):
                 **filters,
             )
 
-            # Map response
-            response = self.response_mapper.map_search_response(
-                raw_response,
-                self.api_client.config.api_key,
-            )
+            response = self.response_mapper.map_search_response(raw_response)
+            payload = response.model_dump(mode="json")
 
-            return {
-                "status": "success",
-                "data": response.model_dump(),
-            }
+            if cache_key is not None:
+                await self.cache_manager.set(cache_key, payload)
 
-        except ValidationError as e:
-            logger.error(f"Validation error: {e}")
+            return {"status": "success", "cached": False, "data": payload}
+
+        except ValidationError as exc:
+            logger.error("Validation error: %s", exc)
             return {
                 "status": "error",
                 "error_type": "validation_error",
-                "message": str(e),
+                "message": str(exc),
             }
-        except APIError as e:
-            logger.error(f"API error: {e}")
+        except APIError as exc:
+            logger.error("API error: %s", exc)
             return {
                 "status": "error",
                 "error_type": "api_error",
-                "message": e.message,
-                "status_code": e.status_code,
+                "message": exc.message,
+                "status_code": exc.status_code,
             }
-        except Exception as e:
-            logger.error(f"Unexpected error: {e}")
+        except Exception as exc:  # noqa: BLE001 - never break the MCP call
+            logger.exception("Unexpected error during search")
             return {
                 "status": "error",
                 "error_type": "unexpected_error",
-                "message": str(e),
+                "message": str(exc),
             }
+
+    def _build_filters(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Validate and translate optional filters into API parameter names."""
+        filters: dict[str, Any] = {}
+
+        if kwargs.get("ptype"):
+            filters["ptype"] = self.validator.validate_procurement_type(kwargs["ptype"])
+
+        if kwargs.get("ncode"):
+            filters["ncode"] = self.validator.validate_naics_code(kwargs["ncode"])
+
+        if kwargs.get("status"):
+            filters["status"] = self.validator.validate_status(kwargs["status"])
+
+        if kwargs.get("type_of_set_aside"):
+            filters["typeOfSetAside"] = self.validator.validate_set_aside_code(
+                kwargs["type_of_set_aside"]
+            )
+
+        if kwargs.get("keyword"):
+            filters["keyword"] = kwargs["keyword"]
+
+        return filters
