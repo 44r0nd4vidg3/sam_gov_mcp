@@ -5,22 +5,32 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "sam-gov-mcp"
 version = "0.2.0"
-description = "A modular Model Context Protocol server for the SAM.gov Get Opportunities API"
+description = "A Model Context Protocol server for the SAM.gov Get Opportunities API"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "Aaron Davidge", email = "aaronthomasthegreat@gmail.com"},
 ]
-keywords = ["mcp", "sam.gov", "opportunities", "api", "procurement"]
+keywords = [
+    "mcp",
+    "model-context-protocol",
+    "sam.gov",
+    "govcon",
+    "federal-contracting",
+    "procurement",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business",
+    "Typing :: Typed",
 ]
 
 dependencies = [
@@ -45,9 +55,15 @@ sam-gov-mcp = "sam_gov_mcp.__main__:run"
 [project.urls]
 Homepage = "https://github.com/44r0nd4vidg3/sam_gov_mcp"
 Issues = "https://github.com/44r0nd4vidg3/sam_gov_mcp/issues"
+Changelog = "https://github.com/44r0nd4vidg3/sam_gov_mcp/blob/main/CHANGELOG.md"
 
-[tool.setuptools]
-packages = ["sam_gov_mcp", "sam_gov_mcp.tools"]
+# Packages are discovered, not listed. A hand-maintained list is what
+# silently dropped sam_gov_mcp.tools from the 0.1.0 wheel.
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+sam_gov_mcp = ["py.typed"]
 
 [tool.ruff]
 line-length = 100
@@ -65,3 +81,4 @@ disallow_untyped_defs = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+pythonpath = ["src"]
