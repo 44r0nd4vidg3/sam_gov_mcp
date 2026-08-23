@@ -2,7 +2,7 @@
 
 import re
 from datetime import datetime
-from typing import Tuple
+
 from sam_gov_mcp.errors import ValidationError
 
 
@@ -28,7 +28,7 @@ class ParameterValidator:
         posted_from: str,
         posted_to: str,
         max_days: int = 365,
-    ) -> Tuple[datetime, datetime]:
+    ) -> tuple[datetime, datetime]:
         """Validate date range parameters.
 
         Args:
@@ -57,7 +57,7 @@ class ParameterValidator:
             start_date = datetime.strptime(posted_from, ParameterValidator.DATE_FORMAT)
             end_date = datetime.strptime(posted_to, ParameterValidator.DATE_FORMAT)
         except ValueError as e:
-            raise ValidationError(f"Invalid date values: {str(e)}")
+            raise ValidationError(f"Invalid date values: {e}") from e
 
         # Validate range
         if start_date > end_date:
@@ -77,7 +77,7 @@ class ParameterValidator:
         limit: int,
         offset: int,
         max_limit: int = 1000,
-    ) -> Tuple[int, int]:
+    ) -> tuple[int, int]:
         """Validate pagination parameters.
 
         Args:
@@ -117,14 +117,16 @@ class ParameterValidator:
         Raises:
             ValidationError: If procurement type is invalid
         """
-        ptype_upper = ptype.upper()
-        if ptype_upper not in ParameterValidator.PROCUREMENT_TYPES:
+        # SAM.gov expects lowercase single-letter codes, and PROCUREMENT_TYPES
+        # holds them in that form, so normalize down rather than up.
+        ptype_lower = ptype.lower()
+        if ptype_lower not in ParameterValidator.PROCUREMENT_TYPES:
             valid_types = ", ".join(sorted(ParameterValidator.PROCUREMENT_TYPES))
             raise ValidationError(
                 f"Invalid procurement type '{ptype}'. "
                 f"Valid types: {valid_types}"
             )
-        return ptype_upper
+        return ptype_lower
 
     @staticmethod
     def validate_naics_code(ncode: str) -> str:

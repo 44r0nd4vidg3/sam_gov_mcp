@@ -1,10 +1,19 @@
 """Tests for API client."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import httpx
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+
 from sam_gov_mcp.api_client import SamApiClient
 from sam_gov_mcp.config import SamApiConfig
-from sam_gov_mcp.errors import AuthenticationError, BadRequestError, NotFoundError, ServerError
+from sam_gov_mcp.errors import (
+    APIError,
+    AuthenticationError,
+    BadRequestError,
+    NotFoundError,
+    ServerError,
+)
 
 
 @pytest.fixture
@@ -14,6 +23,7 @@ def api_config():
         api_key="test-key-123",
         api_url="https://api.sam.gov/opportunities/v2/search",
         timeout=30,
+        max_retries=1,  # no backoff sleeps in tests
     )
 
 
@@ -133,7 +143,7 @@ class TestSamApiClient:
         
         api_client.client.get = AsyncMock(return_value=mock_response)
         
-        result = await api_client.search(
+        await api_client.search(
             posted_from="01/01/2024",
             posted_to="12/31/2024",
             ptype="O",
@@ -146,3 +156,61 @@ class TestSamApiClient:
         call_args = api_client.client.get.call_args
         assert call_args[1]["params"]["ptype"] == "O"
         assert call_args[1]["params"]["ncode"] == "236115"
+
+    @pytest.mark.asyncio
+    async def test_rate_limited(self, api_client):
+        """Test 429 responses surface as APIError."""
+        mock_response = MagicMock()
+        mock_response.status_code = 429
+        mock_response.json.return_value = {"error": "Too many requests"}
+
+        api_client.client.get = AsyncMock(return_value=mock_response)
+
+        with pytest.raises(APIError):
+            await api_client.search(
+                posted_from="01/01/2024",
+                posted_to="12/31/2024",
+            )
+
+    @pytest.mark.asyncio
+    async def test_html_error_body_does_not_mask_status(self, api_client):
+        """A non-JSON error body must still raise the status-specific error.
+
+        SAM.gov serves HTML error pages for some failures; parsing the body
+        eagerly used to raise a JSON decode error instead of ServerError.
+        """
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.json.side_effect = ValueError("not json")
+
+        api_client.client.get = AsyncMock(return_value=mock_response)
+
+        with pytest.raises(ServerError):
+            await api_client.search(
+                posted_from="01/01/2024",
+                posted_to="12/31/2024",
+            )
+
+    @pytest.mark.asyncio
+    async def test_retries_transport_errors(self, api_config):
+        """Transport failures are retried up to max_retries."""
+        api_config.max_retries = 3
+        client = SamApiClient(api_config)
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.is_success = True
+        mock_response.json.return_value = {"totalRecords": 0, "opportunitiesData": []}
+
+        client.client.get = AsyncMock(
+            side_effect=[httpx.RequestError("boom"), mock_response]
+        )
+
+        with patch("asyncio.sleep", new=AsyncMock()):
+            await client.search(
+                posted_from="01/01/2024",
+                posted_to="12/31/2024",
+            )
+
+        assert client.client.get.call_count == 2
+        await client.close()

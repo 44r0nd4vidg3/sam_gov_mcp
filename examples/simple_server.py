@@ -1,4 +1,17 @@
+"""Single-file SAM.gov MCP server (simple mode).
+
+A minimal alternative to the ``sam_gov_mcp`` package: one tool, no
+configuration beyond ``SAM_API_KEY``, and descriptions fetched inline. See
+the README for which one to run and the trade-offs between them.
+"""
+
+import asyncio
+import html
+import json
 import os
+import re
+from datetime import datetime, timedelta
+
 import httpx
 from mcp.server.fastmcp import FastMCP
 
@@ -7,8 +20,9 @@ mcp = FastMCP("SAM-Gov-API")
 
 # The Base URL for the SAM.gov API
 BASE_URL = "https://api.sam.gov/opportunities/v2/search"
+DESC_URL = "https://api.sam.gov/prod/opportunities/v1/noticedesc"
+REQUEST_TIMEOUT = 30.0
 
-from datetime import datetime, timedelta
 
 @mcp.tool()
 async def search_opportunities(
@@ -68,9 +82,6 @@ async def search_opportunities(
     if title:
         params["title"] = title
 
-    import re
-    import html
-    import asyncio
 
     # Clean HTML helper
     def clean_html(text: str) -> str:
@@ -92,7 +103,7 @@ async def search_opportunities(
                 # Add a 0.3-second delay between requests to prevent burst limits
                 await asyncio.sleep(0.3)
                 params = {"api_key": api_key, "noticeid": notice_id}
-                resp = await client.get("https://api.sam.gov/prod/opportunities/v1/noticedesc", params=params)
+                resp = await client.get(DESC_URL, params=params)
                 if resp.status_code == 200:
                     desc = resp.json().get("description", "")
                     cleaned = clean_html(desc)
@@ -103,7 +114,7 @@ async def search_opportunities(
                 pass
             return "Description unavailable."
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
         response = await client.get(BASE_URL, params=params)
         
         if response.status_code != 200:
@@ -120,7 +131,7 @@ async def search_opportunities(
         descriptions = await asyncio.gather(*tasks)
         
         results = []
-        for o, desc in zip(opportunities, descriptions):
+        for o, desc in zip(opportunities, descriptions, strict=False):
             # Extract primary POC
             poc_info = "None listed"
             pocs = o.get("pointOfContact", [])
@@ -152,7 +163,8 @@ async def search_opportunities(
                     "poc": poc_info
                 })
             
-        return str(results)
+        # Return JSON rather than a Python repr so the client can parse it.
+        return json.dumps(results, indent=2, default=str)
 
 if __name__ == "__main__":
     mcp.run()

@@ -1,9 +1,10 @@
 """Tests for parameter validators."""
 
+
 import pytest
-from datetime import datetime
-from sam_gov_mcp.validators import ParameterValidator
+
 from sam_gov_mcp.errors import ValidationError
+from sam_gov_mcp.validators import ParameterValidator
 
 
 class TestDateValidation:
@@ -64,9 +65,18 @@ class TestProcurementTypeValidation:
     """Test procurement type validation."""
 
     def test_valid_procurement_type(self):
-        """Test valid procurement type."""
+        """SAM.gov ptype codes are lowercase and must round-trip unchanged."""
         ptype = ParameterValidator.validate_procurement_type("o")
-        assert ptype == "O"
+        assert ptype == "o"
+
+    def test_every_documented_procurement_type_is_accepted(self):
+        """Regression: the validator used to reject all six valid codes."""
+        for code in ("u", "o", "a", "k", "s", "p"):
+            assert ParameterValidator.validate_procurement_type(code) == code
+
+    def test_procurement_type_is_case_insensitive(self):
+        """Uppercase input is normalized rather than rejected."""
+        assert ParameterValidator.validate_procurement_type("O") == "o"
 
     def test_invalid_procurement_type(self):
         """Test invalid procurement type."""
